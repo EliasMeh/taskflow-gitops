@@ -55,7 +55,7 @@ La capture montre la date et les minutes de la dernière synchronisation Argo CD
 
 ### Vérification du namespace `taskflow`
 
-![Namespace taskflow](docu/image.png)
+![Namespace taskflow](docu/imagetest.png)
 
 Cette capture illustre le résultat du script `./scripts/observe.sh` : le namespace `taskflow` existe bien et le service répond correctement.
 
