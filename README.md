@@ -166,11 +166,11 @@ La promotion avance progressivement. Les anciennes et nouvelles révisions coexi
 
 La nouvelle version devient stable après validation. Les anciennes révisions sont alors mises à l’échelle vers zéro et le rollout est considéré comme healthy.
 
-### Vérification avec `observe.sh`
+### Tentative de passage en 2.1.0 et Vérification avec `observe.sh`
 
 ![Réponses HTTP après promotion](docu2/image12.png)
 
-Le script confirme que le service répond désormais avec `version=2.0.0` et des codes HTTP `200`, ce qui valide la fin du canary.
+Le script confirme que le service répond désormais avec `version=2.0.0` et des codes HTTP `200`, ce qui valide la fin du canary à la suite de l'abort. La version 2.1.0 ne fonctionnant pas.
 
 ### Blue-Green ou Canary pour TaskFlow ?
 
