@@ -78,3 +78,11 @@ Le déploiement n’est pas instantané à l’instant précis du merge : Argo C
 ![Retour à la version précédente](docu/image%20copy%206.png)
 
 Après avoir effectué le revert de la PR, le déploiement est immédiatement ramené à sa version précédente. La transition de `2.0.0` vers `1.0.0` est ainsi rétablie presque instantanément par Argo CD, ce qui confirme que la branche Git reste la source de vérité et que le cluster suit automatiquement l’état voulu.
+
+### Prune après suppression du fichier `service.yaml`
+
+![Suppression du service par PR](docu/image%20copy%207.png)
+
+![Service supprimé dans le cluster](docu/image%20copy%208.png)
+
+Après avoir supprimé le fichier `service.yaml` dans la PR, Argo CD a appliqué automatiquement le prune. Le `Service` n’apparaît plus dans le namespace `taskflow`, ce qui montre que les ressources absentes du dépôt Git sont supprimées du cluster par Argo CD. C’est le comportement attendu du mode `prune: true` dans le GitOps.
