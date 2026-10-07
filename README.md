@@ -104,6 +104,8 @@ Le manifeste a été modifié pour faire passer l’image de la version actuelle
 
 Dans une stratégie Blue-Green, le système actif et le système de prévisualisation coexistent pendant la validation. Le trafic reste sur le service actif jusqu’à la promotion.
 
+J'ai oublié de modif le observe.sh histoire de voir tous les pods mais en soit la vue IHM revient au même.
+
 ### Pré-promotion : sortie du script `observe.sh`
 
 ![Pré-promotion observe](docu2/image5.png)
@@ -133,5 +135,50 @@ Après la promotion, le trafic est maintenant servi par la nouvelle version. La 
 Après promotion, la nouvelle version est activée et on peut le vérifier dans le manifeste : la version de travail et la cible sont bien visibles dans la configuration; la bascule est maintenant effective.
 
 ## Canary Part
+
+### Remplacement du `Deployment` par un `Rollout` Canary
+
+![Rollout Canary dans le dépôt](docu2/image7.png)
+
+Le manifest de déploiement est remplacé par un `Rollout` afin d’autoriser les étapes de promotion progressive, le traffic split et la gestion de la fenêtre de validation avant basculement complet.
+
+### PR sur la version `1.1.0`
+
+![Sync Argo CD et statut de l’application](docu2/image8.png)
+
+La PR met à jour l’image vers `1.1.0`. Argo CD synchronise l’application et confirme le bon état global du cluster : le dépôt reste la source de vérité et le cluster est aligné dessus.
+
+### Canary en pause avant promotion
+
+![Canary en pause](docu2/image9.png)
+
+Le rollout est mis en pause pendant la validation. On observe que la nouvelle révision est présente, mais que le trafic n’est pas encore complètement basculé vers elle et que les anciennes révisions restent encore stables.
+
+### Promotion partielle du canary
+
+![Promotion partielle du canary](docu2/image10.png)
+
+La promotion avance progressivement. Les anciennes et nouvelles révisions coexistent temporairement, et le système répartit le trafic de manière contrôlée au lieu d’un basculement brutal.
+
+### Promotion jusqu’à 100 %
+
+![Canary finalisé](docu2/image11.png)
+
+La nouvelle version devient stable après validation. Les anciennes révisions sont alors mises à l’échelle vers zéro et le rollout est considéré comme healthy.
+
+### Vérification avec `observe.sh`
+
+![Réponses HTTP après promotion](docu2/image12.png)
+
+Le script confirme que le service répond désormais avec `version=2.0.0` et des codes HTTP `200`, ce qui valide la fin du canary.
+
+### Blue-Green ou Canary pour TaskFlow ?
+
+Pour un service comme TaskFlow, le meilleur choix dépend du niveau de risque acceptable.
+
+- Le Blue-Green est plus simple à comprendre et à maintenir : un service actif et un service de prévisualisation, avec un basculement net et un rollback rapide. Le coût est faible, mais le risque est plus visible si la version cible est défaillante au moment du switch.
+- Le Canary est plus coûteux en operational complexity : il demande plus de surveillance, plus de contrôles de trafic et une validation plus fine. En revanche, il réduit le risque de dégradation globale parce que le trafic est réparti progressivement.
+
+Pour une application de type petite API interne, le Blue-Green est souvent le choix le plus lisible et le plus rapide à exploiter. Pour un service plus critique ou plus sensible au risque de production, le Canary apporte un meilleur contrôle au prix d’une complexité plus élevée.
 
 
