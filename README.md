@@ -37,5 +37,44 @@ Il peut être relancé sans risque.
 
 ## Équipe
 
-<!-- Noms du binôme -->
-- À compléter
+Elias 
+
+## Captures
+
+### Dernière PR et déploiement
+
+![Dernière PR](docu/image%20copy.png)
+
+La capture montre la date du dernier merge de la PR, et le déploiement a été appliqué par Argo CD en moins d’une minute.
+
+### Dernière synchronisation Argo CD
+
+![Dernière synchronisation](docu/image%20copy%202.png)
+
+La capture montre la date et les minutes de la dernière synchronisation Argo CD, avec le projet `taskflow` en état `Synced` et `Healthy`.
+
+### Vérification du namespace `taskflow`
+
+![Namespace taskflow](docu/image.png)
+
+Cette capture illustre le résultat du script `./scripts/observe.sh` : le namespace `taskflow` existe bien et le service répond correctement.
+
+### Dérive manuelle corrigée immédiatement
+
+![Dérive manuelle](docu/image%20copy%203.png)
+
+![Restauration Argo CD](docu/image%20copy%204.png)
+
+Lorsqu’on exécute une commande telle que `kubectl scale deployment/taskflow --replicas=0`, le cluster diverge de l’état décrit dans Git. Argo CD le détecte immédiatement et réapplique automatiquement la configuration voulue, de sorte que la version de base est restaurée quasi instantanément. C’est le principe du GitOps : Git reste la source de vérité, et Argo CD corrige automatiquement les écarts du cluster.
+
+### Temps de synchronisation Argo CD
+
+Le déploiement n’est pas instantané à l’instant précis du merge : Argo CD applique les changements au prochain cycle de reconciliation. Dans ce projet, la fréquence a été configurée à 60 secondes via la configuration de Argo CD, ce qui explique pourquoi le passage d’une version à l’autre a pris environ une minute. La synchronisation est donc dépendante du polling Argo CD et du temps de comparaison entre l’état Git et l’état réel du cluster.
+
+### Revert de la PR et retour à la version précédente
+
+![Revert de la PR](docu/image%20copy%205.png)
+
+![Retour à la version précédente](docu/image%20copy%206.png)
+
+Après avoir effectué le revert de la PR, le déploiement est immédiatement ramené à sa version précédente. La transition de `2.0.0` vers `1.0.0` est ainsi rétablie presque instantanément par Argo CD, ce qui confirme que la branche Git reste la source de vérité et que le cluster suit automatiquement l’état voulu.
