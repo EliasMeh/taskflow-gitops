@@ -86,3 +86,52 @@ Après avoir effectué le revert de la PR, le déploiement est immédiatement ra
 ![Service supprimé dans le cluster](docu/image-copy-8.png)
 
 Après avoir supprimé le fichier `service.yaml` dans la PR, Argo CD a appliqué automatiquement le prune. Le `Service` n’apparaît plus dans le namespace `taskflow`, ce qui montre que les ressources absentes du dépôt Git sont supprimées du cluster par Argo CD. C’est le comportement attendu du mode `prune: true` dans le GitOps.
+
+# LAB Blue-Green Canary
+
+## Blue Green Part
+
+
+### Changement de version dans le code
+
+![Changement de version dans le code](docu2/image1.png)
+
+Le manifeste a été modifié pour faire passer l’image de la version actuelle vers une version cible, en gardant le principe GitOps : le dépôt reste la source de vérité.
+
+### Présence du système Green et du système Blue
+
+![Système Green et Blue](docu2/image2.png)
+
+Dans une stratégie Blue-Green, le système actif et le système de prévisualisation coexistent pendant la validation. Le trafic reste sur le service actif jusqu’à la promotion.
+
+### Pré-promotion : sortie du script `observe.sh`
+
+![Pré-promotion observe](docu2/image5.png)
+
+Avant la promotion, le script `observe.sh` montre encore la version active en circulation. On voit que le service répond encore avec la version précédente, ce qui confirme que le trafic n’a pas encore été basculé.
+
+### Commande de promotion utilisée
+
+![Promotion vers la nouvelle version](docu2/image4.png)
+
+```bash
+kubectl argo rollouts promote taskflow -n taskflow
+```
+
+Cette commande a été utilisée pour promouvoir la version prête vers le service actif.
+
+### Post-migration : sortie du script `observe.sh`
+
+![Post-migration observe](docu2/image6.png)
+
+Après la promotion, le trafic est maintenant servi par la nouvelle version. La sortie montre la réponse du service après le basculement, ce qui valide que la migration est effective.
+
+### Passage effectif vers la nouvelle version
+
+![Version effective dans le manifeste](docu2/image3.png)
+
+Après promotion, la nouvelle version est activée et on peut le vérifier dans le manifeste : la version de travail et la cible sont bien visibles dans la configuration; la bascule est maintenant effective.
+
+## Canary Part
+
+
