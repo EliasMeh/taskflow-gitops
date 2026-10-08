@@ -187,4 +187,56 @@ Pour un service comme TaskFlow, le meilleur choix dépend du niveau de risque ac
 
 Pour une application de type petite API interne, le Blue-Green est souvent le choix le plus lisible et le plus rapide à exploiter. Pour un service plus critique ou plus sensible au risque de production, le Canary apporte un meilleur contrôle au prix d’une complexité plus élevée.
 
+# LAB J3
+
+## A. Étalon et analyse de robustesse
+
+### Baseline 2.0.0 avec `charge.sh`
+
+![Charge.sh sur la production stable](docu2/image14.png)
+
+Avant d’introduire une révision problématique, nous avons mesuré la version stable `2.0.0` avec `./scripts/charge.sh http://taskflow`. La sortie est utilisée comme point de comparaison : on note les erreurs HTTP, le p95 et le niveau global de qualité de service. C’est la référence qui permettra de montrer qu’une révision suivante a dépassé le seuil acceptable.
+
+### Ajout des fichiers de robustesse
+
+![Ajout des fichiers robustesse](docu2/image15.png)
+
+Le dossier `exemples/robustesse` apporte les composants nécessaires à l’analyse automatique : le `Rollout` dédié, les services, le `ConfigMap` de charge et les templates d’analyse. Ce mécanisme transforme le déploiement simple en un pipeline de validation qualité, avec décision automatique de promotion ou d’abort.
+
+### Vérification des CRD et des ressources associées
+
+![Vérification des CRD et des ressources](docu2/image16.png)
+
+Le manifeste de l’application est désormais un `Rollout`, et non plus un `Deployment`. Avant de lancer l’incident, il faut vérifier que les ressources de Argo Rollouts sont bien présentes dans le cluster : la CRD, le `AnalysisTemplate`, le `ConfigMap` et le `Service`. Ce contrôle permet de confirmer que le mécanisme d’analyse et de promotion automatique est bien branché sur le cluster.
+
+## B. L’incident 2.1.0 et les preuves
+
+### Preuve 1 — le pod post migration est en service et la version est active
+
+![Pods post migration 2.1.1](docu2/image17.png)
+
+Après la mise en place de la version `2.1.1`, on vérifie l’état des pods et leur disponibilité. Cette capture montre que la révision est bien active et que les instances du service sont en cours d’exécution. C’est la première preuve que la nouvelle version est bien déployée et que le système est dans un état observable.
+
+### Preuve 2 — k6 signale des checks en échec
+
+![Résultat k6 avec checks failed](docu2/image18.png)
+
+Le job k6 montre explicitement des checks en échec. La preuve importante ici est le taux d’erreur et la violation des seuils de validation. Cela indique que la métrique de charge n’est plus conforme et que la version n’est plus acceptable pour une promotion continue.
+
+### Preuve 3 — `describe analysisrun` confirme la validation automatique
+
+![Describe AnalysisRun](docu2/image19.png)
+
+La commande `kubectl -n taskflow describe analysisrun <nom>` montre le détail du run. On vérifie notamment que le job k6 a été créé, exécuté et terminé avec un état `Completed`, ainsi que le nom du job associé. Cette preuve confirme que le mécanisme d’analyse automatique a bien surveillé la version et a conduit la validation jusqu’à son terme.
+
+### Preuve 4 — chronologie et fin du rollout
+
+![Événements et Rollout completed](docu2/image20.png)
+
+La commande `kubectl -n taskflow get events --sort-by=.lastTimestamp` montre la séquence de l’incident. On voit le lancement du rollout, la création des pods, l’éxécution du job de validation et enfin le point où le système conclut par `Rollout completed` ou par des événements de validation. Ce qu’on en tire est crucial : la chronologie confirme que la décision de promotion ou d’arrêt vient bien du mécanisme Argo Rollouts, et non d’une opération manuelle. L’ensemble des preuves converge vers la même conclusion : la version évaluée ne respecte pas les critères de qualité attendus, et le système interdit sa progression sans intervention humaine.
+
+## Conclusion J3
+
+Le LAB J3 montre que le déploiement automatisé ne se limite pas à l’application des manifests. Il repose aussi sur la capacité du cluster à mesurer, valider et décider. Les `AnalysisRun`, les jobs k6, les `ConfigMap` et les `Service` sont les briques qui permettent de transformer un simple rollout en mécanisme de sécurité opérationnelle : on ne passe à la version suivante que si elle passe les seuils imposés par l’analyse.
+
 
