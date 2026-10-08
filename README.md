@@ -274,3 +274,64 @@ Une fois le faux positif corrigé, le passage vers la version `2.2.0` fonctionne
 ### Création du post-mortem
 
 Le fichier apps/taskflow/docs/postmortem-incident-2-1-0.md représente le résumé, la root cause et la correction de l'incident de déploiement.
+
+# Lab C
+
+## PSSI — règles obligatoires dans le pipeline
+
+Les règles de sécurité ci-dessous sont contrôlées en PR et doivent être rendues obligatoires dans le ruleset GitHub (branch protection / required status checks).
+
+| Règle | Contrôle | Outil | Preuve |
+| --- | --- | --- | --- |
+| PSSI-R1 | Tag explicite, jamais `latest` | `conftest` | Sortie `FAIL` si l'image n'a pas de tag explicite |
+| PSSI-R2 | Registre autorisé `ghcr.io/9m7fjfpv9k-cyber/` | `conftest` | Sortie `FAIL` si l'image provient d'un autre registre |
+| PSSI-R3 | Limite mémoire présente | `conftest` | Sortie `FAIL` si `resources.limits.memory` est absent |
+| PSSI-R4 | `runAsNonRoot: true` | `conftest` | Sortie `FAIL` si le pod n'est pas non-root |
+| PSSI-R5 | Aucune vulnérabilité HIGH/CRITICAL corrigeable | `Trivy` | Sortie de scan non nulle sur image vulnérable |
+
+### Preuve de blocage de PR : sortie locale sur une version non conforme
+
+Lorsqu'un manifeste viole une règle, la PR est bloquée au niveau du check obligatoire. La preuve locale équivalente est la sortie suivante (obtenue lors du test de la version non conforme) :
+
+```text
+FAIL - apps/taskflow/rollout.yaml - main - PSSI-R4 : le pod 'taskflow' n'a pas securityContext.runAsNonRoot: true
+
+25 tests, 24 passed, 0 warnings, 1 failure, 0 exceptions
+```
+
+C'est le même type de blocage que celui attendu dans GitHub quand le check `PSSI manifests (conftest)` ou `PSSI images (Trivy)` est rendu obligatoire dans le ruleset.
+
+### Règle de traitement des vulnérabilités Trivy
+
+Quand le scan Trivy remonte une vulnérabilité HIGH ou CRITICAL corrigeable :
+
+- soit la vulnérabilité est corrigée dans l'image ;
+- soit une exception datée et justifiée est ajoutée dans le fichier `.trivyignore`.
+
+Exemple de format attendu :
+
+```text
+# Exception temporaire pour PSSI-R5
+# Date: 2026-10-08
+# Raison: vulnérabilité non corrigée dans l'image de démonstration, à revoir au prochain cycle de build
+# À retirer avant 2026-12-31
+```
+
+### Actions de mise en protection du dépôt
+
+1. Copier le workflow de sécurité dans `.github/workflows/pssi.yml`.
+2. Rendre obligatoire les checks GitHub :
+   - `PSSI manifests (conftest)`
+   - `PSSI images (Trivy)`
+3. Dans les settings de dépôt, configurer le branch protection sur `main` pour bloquer les merges tant que ces checks sont rouge.
+4. En cas d'image non conforme (`latest`, `nginx`, registre non autorisé, ou vulnérabilité Trivy), la PR reste bloquée jusqu'à correction ou exception datée et validée.
+
+### Vérification finale locale
+
+La validation du manifest est maintenant conforme après correction du pod non-root :
+
+```text
+25 tests, 25 passed, 0 warnings, 0 failures, 0 exceptions
+```
+
+
