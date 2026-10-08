@@ -166,6 +166,12 @@ La promotion avance progressivement. Les anciennes et nouvelles révisions coexi
 
 La nouvelle version devient stable après validation. Les anciennes révisions sont alors mises à l’échelle vers zéro et le rollout est considéré comme healthy.
 
+### Abort du canary : l’état passe en `Degraded`
+
+![Abort du canary et dégradation](docu2/image13.png)
+
+Lorsqu’une nouvelle version ne respecte pas les critères de qualité attendus, l’abort du canary permet de revenir immédiatement à un état stable. La sortie montre bien le passage en état `Degraded` et confirme que le système a été ramené à un niveau de service sûr avant de poursuivre ou de corriger la version.
+
 ### Tentative de passage en 2.1.0 et Vérification avec `observe.sh`
 
 ![Réponses HTTP après promotion](docu2/image12.png)
