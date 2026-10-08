@@ -289,6 +289,66 @@ Les règles de sécurité ci-dessous sont contrôlées en PR et doivent être re
 | PSSI-R4 | `runAsNonRoot: true` | `conftest` | Sortie `FAIL` si le pod n'est pas non-root |
 | PSSI-R5 | Aucune vulnérabilité HIGH/CRITICAL corrigeable | `Trivy` | Sortie de scan non nulle sur image vulnérable |
 
+### Analyse des captures
+
+
+
+#### 1. Mise en évidence du problème côté manifestes
+
+Les premières captures montrent l'état initial du Rollout, avant le durcissement complet. On voit que le travail n'est pas encore conforme à la mini-PSSI, ce qui explique pourquoi le passage dans `conftest` sert de point de départ au diagnostic.
+
+![Image 1 - version sans R3 et R4](docu3/image1.png)
+
+Quand `R3` et `R4` sont ajoutées, l'analyse devient plus précise: le manifeste est mieux couvert, mais une erreur de conformité reste visible. La capture suivante illustre justement le fait qu'ajouter des règles ne suffit pas si le pod reste incompatible avec les exigences de sécurité.
+
+![Image 2 - version avec une failure en plus](docu3/image2.png)
+
+La correction apportée ensuite montre le bon réflexe: on part de l'erreur remontée par `conftest`, on corrige le Rollout, puis on relance le contrôle jusqu'à obtenir une validation propre.
+
+![Image 3 - correction du problème conftest](docu3/image3.png)
+
+La solution retenue sur le Pod confirme le fond du correctif: l'objectif n'était pas seulement de faire passer le test, mais d'aligner le déploiement avec une posture de sécurité cohérente, en particulier sur l'exécution non-root.
+
+![Image 4 - solution appliquée](docu3/image4.png)
+
+#### 2. Passage d'un correctif local à une règle de dépôt
+
+Une fois le manifest corrigé, la suite logique consiste à empêcher la régression. La capture du ruleset montre que les deux checks critiques ont été déclarés obligatoires: `PSSI manifests (conftest)` et `PSSI images (Trivy)`.
+
+![Image 5 - checks ajoutés au ruleset](docu3/image5.png)
+
+Cette étape est importante parce qu'elle transforme une bonne pratique locale en garde-fou de dépôt. Autrement dit, même si le manifest est correct à un instant donné, il ne peut plus être fusionné si l'un des contrôles de sécurité échoue.
+
+#### 3. Traitement du blocage Trivy et gestion maîtrisée de l'exception
+
+La capture suivante montre le cas problématique de l'image `2.2.0`: le push ou la mise à jour associée est bloquée parce que le scan remonte encore un risque de sécurité. Cela prouve que la politique ne se limite pas aux manifests Kubernetes; elle couvre aussi l'image réellement déployée.
+
+![Image 6 - push bloqué sur l'image 2.2.0](docu3/image6.png)
+
+La sortie de scan montre ensuite la logique du blocage: Trivy détecte des vulnérabilités `HIGH` sur certaines dépendances Python, ce qui suffit à faire échouer le contrôle. Le signal est clair: tant que l'image embarque ces versions, le pipeline doit refuser la validation.
+
+![Image 7 - exemple de sortie](docu3/image7.png)
+
+Après adaptation de la commande de lancement, la lecture des résultats devient plus exploitable. Cette étape sert surtout à stabiliser le mode d'exécution du scan pour obtenir une preuve lisible et reproductible.
+
+![Image 8 - sortie après adaptation de la commande](docu3/image8.png)
+
+Une fois l'exception encadrée, les deux checks passent ensemble: le manifest est conforme et l'image n'est plus bloquante pour le pipeline. C'est la capture la plus importante du point de vue du livrable, parce qu'elle prouve que le dépôt est désormais protégé par les deux règles attendues.
+
+![Image 9 - checks passés](docu3/image9.png)
+
+La dernière capture explique le résultat obtenu: les identifiants CVE ont été ajoutés dans `.trivyignore`, ce qui documente explicitement l'exception et évite de masquer silencieusement le problème. Le comportement est donc volontaire et traçable, pas accidentel.
+
+![Image 10 - raison du passage via .trivyignore](docu3/image10.png)
+
+#### Synthèse
+
+En résumé, les captures démontrent trois choses.
+
+1. `conftest` sert à valider le manifeste Kubernetes et à faire apparaître immédiatement les écarts de sécurité comme l'absence de `runAsNonRoot: true`.
+2. Le ruleset GitHub transforme ces contrôles en obligations de merge, ce qui empêche une PR non conforme de passer.
+3. Trivy bloque les images qui contiennent encore des vulnérabilités corrigeables, et l'exception doit être explicitement encadrée dans `.trivyignore` quand on choisit de la tolérer temporairement.
+
 ### Preuve de blocage de PR : sortie locale sur une version non conforme
 
 Lorsqu'un manifeste viole une règle, la PR est bloquée au niveau du check obligatoire. La preuve locale équivalente est la sortie suivante (obtenue lors du test de la version non conforme) :
