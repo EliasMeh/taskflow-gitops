@@ -209,34 +209,68 @@ Le dossier `exemples/robustesse` apporte les composants nécessaires à l’anal
 
 Le manifeste de l’application est désormais un `Rollout`, et non plus un `Deployment`. Avant de lancer l’incident, il faut vérifier que les ressources de Argo Rollouts sont bien présentes dans le cluster : la CRD, le `AnalysisTemplate`, le `ConfigMap` et le `Service`. Ce contrôle permet de confirmer que le mécanisme d’analyse et de promotion automatique est bien branché sur le cluster.
 
-## B. L’incident 2.1.0 et les preuves
+## B. L’incident 2.1.0 et les preuves — faux positif initial
 
-### Preuve 1 — le pod post migration est en service et la version est active
+### Attention : preuve du faux positif
 
-![Pods post migration 2.1.1](docu2/image17.png)
+Les captures ci-dessous correspondent à un faux positif initial. La cause n’était pas une régression réelle de la version, mais le fait que le selector n’avait pas encore été correctement propagé sur les nouveaux pods. Le système observait donc un état incomplet, ce qui a produit des signaux trompeurs sur le rollout et sur les checks k6. Ces captures doivent donc être interprétées comme une preuve du faux positif, et non comme une preuve d’un bug fonctionnel réel sur la version 2.1.0.
 
-Après la mise en place de la version `2.1.1`, on vérifie l’état des pods et leur disponibilité. Cette capture montre que la révision est bien active et que les instances du service sont en cours d’exécution. C’est la première preuve que la nouvelle version est bien déployée et que le système est dans un état observable.
+### Preuve 1 — faux positif : le pod post migration est en service et la version est active
 
-### Preuve 2 — k6 signale des checks en échec
+![Faux positif - pods post migration 2.1.1](docu2/image17.png)
 
-![Résultat k6 avec checks failed](docu2/image18.png)
+À ce stade, l’observation semblait indiquer que la nouvelle version était bien déployée et active. En réalité, la cible du test n’était pas encore bien alignée sur les nouveaux pods, donc cette image ne reflète pas un vrai échec fonctionnel de la version elle-même.
 
-Le job k6 montre explicitement des checks en échec. La preuve importante ici est le taux d’erreur et la violation des seuils de validation. Cela indique que la métrique de charge n’est plus conforme et que la version n’est plus acceptable pour une promotion continue.
+### Preuve 2 — faux positif : k6 signale des checks en échec
 
-### Preuve 3 — `describe analysisrun` confirme la validation automatique
+![Faux positif - résultat k6 avec checks failed](docu2/image18.png)
 
-![Describe AnalysisRun](docu2/image19.png)
+Le report k6 indiquait des checks en échec, mais cette alerte était liée à un mauvais ciblage du service lors de la validation, et non à une réelle défaillance de la version déployée. La lecture correcte est donc : “validation trompeuse”, pas “régression confirmée”.
 
-La commande `kubectl -n taskflow describe analysisrun <nom>` montre le détail du run. On vérifie notamment que le job k6 a été créé, exécuté et terminé avec un état `Completed`, ainsi que le nom du job associé. Cette preuve confirme que le mécanisme d’analyse automatique a bien surveillé la version et a conduit la validation jusqu’à son terme.
+### Preuve 3 — faux positif : `describe analysisrun` semble confirmer une validation automatique négative
 
-### Preuve 4 — chronologie et fin du rollout
+![Faux positif - Describe AnalysisRun](docu2/image19.png)
 
-![Événements et Rollout completed](docu2/image20.png)
+Le `describe analysisrun` montrait un état qui semblait négatif. En réalité, il a servi de preuve supplémentaire de l’erreur de ciblage : la commande pointait vers les mauvais pods, ce qui a faussé la lecture de l’analyse. Le mécanisme Argo Rollouts n’était pas encore observant la bonne cible.
 
-La commande `kubectl -n taskflow get events --sort-by=.lastTimestamp` montre la séquence de l’incident. On voit le lancement du rollout, la création des pods, l’éxécution du job de validation et enfin le point où le système conclut par `Rollout completed` ou par des événements de validation. Ce qu’on en tire est crucial : la chronologie confirme que la décision de promotion ou d’arrêt vient bien du mécanisme Argo Rollouts, et non d’une opération manuelle. L’ensemble des preuves converge vers la même conclusion : la version évaluée ne respecte pas les critères de qualité attendus, et le système interdit sa progression sans intervention humaine.
+### Preuve 4 — faux positif : chronologie et fin du rollout
 
-## Conclusion J3
+![Faux positif - événements et Rollout completed](docu2/image20.png)
 
-Le LAB J3 montre que le déploiement automatisé ne se limite pas à l’application des manifests. Il repose aussi sur la capacité du cluster à mesurer, valider et décider. Les `AnalysisRun`, les jobs k6, les `ConfigMap` et les `Service` sont les briques qui permettent de transformer un simple rollout en mécanisme de sécurité opérationnelle : on ne passe à la version suivante que si elle passe les seuils imposés par l’analyse.
+La chronologie faisait croire à un résultat de validation défavorable, mais elle ne reflétait pas le vrai état du service après correction du selector. La conclusion correcte est donc: ce n’était pas encore la bonne preuve de défaillance ; c’était un faux positif technique de ciblage.
 
+## C. Post correction du faux positif
 
+### Correction appliquée
+
+Après avoir augmenté le temps d’attente et laissé le selector se propager sur les nouveaux pods, la validation a enfin ciblé la bonne cible. La phase d’abort a alors été observée correctement, et les captures suivantes reflètent le vrai comportement de l’application après correction du faux positif.
+
+### Preuve 1 — post-abort : état observé après correction du selector
+
+![Post-abort 1](docu2/imagePOSTABORT1.png)
+
+Cette capture montre l’état réel après correction du faux positif. Les pods ciblés sont bien les bons, et la validation ne se base plus sur des conteneurs non cohérents avec la révision active.
+
+### Preuve 2 — post-abort : suivi de la progression du rollout
+
+![Post-abort 2](docu2/imagePOSTABORT2.png)
+
+On observe le comportement de progression du rollout après correction du ciblage. Le système se comporte comme attendu : les étapes de validation et d’abort sont désormais cohérentes avec les ressources réellement concernées.
+
+### Preuve 3 — post-abort : validation du comportement du service
+
+![Post-abort 3](docu2/imagePOSTABORT3.png)
+
+Cette capture confirme que le service est désormais observé correctement, avec la vraie logique de canary / analyse. Le faux positif a bien été éliminé et le système est revenu à un état de lecture fiable.
+
+## D. Passage en 2.2.0 validé
+
+### Passage réussi vers la version 2.2.0
+
+![Passage en 2.2.0 réussi](docu2/imageQ21.png)
+
+Une fois le faux positif corrigé, le passage vers la version `2.2.0` fonctionne correctement. La preuve finale montre que la nouvelle révision est bien active, stable et acceptable selon les seuils de robustesse. La délivrable est donc validée : le système passe bien de la version problématique à une version saine après correction du ciblage et de la validation.
+
+### Création du post-mortem
+
+Le fichier apps/taskflow/docs/postmortem-incident-2-1-0.md représente le résumé, la root cause et la correction de l'incident de déploiement.
