@@ -1,6 +1,0 @@
-# Exception temporaire Trivy pour PSSI-R5
-# Date de création : 2026-10-08
-# Raison : cette exception doit être justifiée, limitée dans le temps et supprimée dès que la vulnérabilité est corrigée.
-# Toute entrée ci-dessous doit être accompagnée d'un identifiant CVE et d'une date de revue.
-# Exemple :
-# CVE-2025-0000  # À retirer avant 2026-12-31, vulnérabilité non corrigée dans l'image de démonstration.
